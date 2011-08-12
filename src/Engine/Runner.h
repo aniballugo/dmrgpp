@@ -74,49 +74,43 @@ DISCLOSED WOULD NOT INFRINGE PRIVATELY OWNED RIGHTS.
 /** \ingroup DMRG */
 /*@{*/
 
-/*! \file InternalProductOnTheFly.h
+/*! \file Runner.h
  *
- *  A class to encapsulate the product x+=Hy, where x and y are vectors and H is the Hamiltonian matrix
- *
+ *  A class to help repeating a task multiple times
+ * 
  */
-#ifndef	INTERNALPRODUCT_OTF_H
-#define INTERNALPRODUCT_OTF_H
+#ifndef RUNNER_HEADER_H
+#define RUNNER_HEADER_H
 
+#include <string>
+#include <fstream>
+#include <iostream>
 #include <vector>
+#include "TypeToString.h"
+#include <cstdlib>
 
 namespace Dmrg {
-	template<
-		typename T, 
-		typename ModelType
-		>
-	class InternalProductOnTheFly {
-	public:	
-		typedef T HamiltonianElementType;
-		typedef T value_type;
-		typedef typename ModelType::ModelHelperType ModelHelperType;
-		typedef typename ModelHelperType::RealType RealType;
-
-		InternalProductOnTheFly(ModelType const *model,ModelHelperType const *modelHelper) 
+	class	Runner {
+	public:
+		Runner(const std::string& exec,
+		       const std::string& inputRoot,
+		       const std::string& ext)
+		: exec_(exec),inputRoot_(inputRoot),ext_(ext)
 		{
-			model_ = model;
-			modelHelper_=modelHelper;
-			
 		}
-
-		size_t rank() const { return modelHelper_->size(); }
 		
-		template<typename SomeVectorType>
-		void matrixVectorProduct(SomeVectorType &x,SomeVectorType const &y) const
+		void operator()(size_t i) const
 		{
-			 model_->matrixVectorProduct(x,y,*modelHelper_);
+			std::string s = exec_ + " " + inputRoot_ + ttos(i) + ext_;
+			system(s.c_str());
 		}
 
 	private:
-		ModelType const *model_;
-		ModelHelperType const *modelHelper_;
-	}; // class InternalProductOnTheFly
+
+		std::string exec_,inputRoot_,ext_;
+	}; // class Runner
 } // namespace Dmrg
 
 /*@}*/
-#endif
+#endif // RUNNER_HEADER_H
 

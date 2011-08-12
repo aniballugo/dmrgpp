@@ -74,49 +74,71 @@ DISCLOSED WOULD NOT INFRINGE PRIVATELY OWNED RIGHTS.
 /** \ingroup DMRG */
 /*@{*/
 
-/*! \file InternalProductOnTheFly.h
+/*! \file Cloner.h
  *
- *  A class to encapsulate the product x+=Hy, where x and y are vectors and H is the Hamiltonian matrix
- *
+ *  A class to help repeating a task multiple times
+ * 
  */
-#ifndef	INTERNALPRODUCT_OTF_H
-#define INTERNALPRODUCT_OTF_H
+#ifndef CLONER_HEADER_H
+#define CLONER_HEADER_H
 
+#include <string>
+#include <fstream>
+#include <iostream>
 #include <vector>
+#include "TypeToString.h"
 
 namespace Dmrg {
-	template<
-		typename T, 
-		typename ModelType
-		>
-	class InternalProductOnTheFly {
-	public:	
-		typedef T HamiltonianElementType;
-		typedef T value_type;
-		typedef typename ModelType::ModelHelperType ModelHelperType;
-		typedef typename ModelHelperType::RealType RealType;
-
-		InternalProductOnTheFly(ModelType const *model,ModelHelperType const *modelHelper) 
+	template<typename LineChangerType>
+	class	Cloner {
+		static const size_t  LINE_LENGTH = 1024;
+	public:
+		Cloner(const std::string& infile,
+		       const std::string& outRoot,
+		       const std::string& ext)
+		: infile_(infile),outRoot_(outRoot),ext_(ext)
 		{
-			model_ = model;
-			modelHelper_=modelHelper;
-			
+		}
+		
+		void push(const LineChangerType& lineChanger) 
+		{
+			lineChanger_.push_back(lineChanger);
 		}
 
-		size_t rank() const { return modelHelper_->size(); }
-		
-		template<typename SomeVectorType>
-		void matrixVectorProduct(SomeVectorType &x,SomeVectorType const &y) const
+		void createInputFile(size_t ind) const
 		{
-			 model_->matrixVectorProduct(x,y,*modelHelper_);
+			std::ifstream fin(infile_.c_str());
+			std::string outfile = outRoot_ + ttos(ind) + ext_;
+			std::ofstream fout(outfile.c_str());
+			char line[LINE_LENGTH];
+			while(!fin.eof()) {
+				fin.getline(line,LINE_LENGTH);
+				std::string s(line);
+				if (!procLine(s,ind)) continue;
+				fout<<s<<"\n";
+			}
+			fout.close();
+			fin.close();
 		}
 
 	private:
-		ModelType const *model_;
-		ModelHelperType const *modelHelper_;
-	}; // class InternalProductOnTheFly
+
+		bool procLine(std::string& s,size_t ind) const
+		{
+			for (size_t i=0;i<lineChanger_.size();i++) {
+				if (s.find(lineChanger_[i].string())!=std::string::npos) {
+					return lineChanger_[i].act(ind,s);
+				}
+			}
+			return true;
+		}
+
+		std::string infile_,outRoot_,ext_;
+		std::vector<LineChangerType> lineChanger_;
+	}; // class Cloner
+
 } // namespace Dmrg
 
 /*@}*/
-#endif
+#endif // CLONER_HEADER_H
 

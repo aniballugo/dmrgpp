@@ -1,6 +1,6 @@
 // BEGIN LICENSE BLOCK
 /*
-Copyright (c) 2009, UT-Battelle, LLC
+Copyright (c) 2009-2011, UT-Battelle, LLC
 All rights reserved
 
 [DMRG++, Version 2.0.0]
@@ -74,49 +74,81 @@ DISCLOSED WOULD NOT INFRINGE PRIVATELY OWNED RIGHTS.
 /** \ingroup DMRG */
 /*@{*/
 
-/*! \file InternalProductOnTheFly.h
+/*! \file ConjugateGradient.h
  *
- *  A class to encapsulate the product x+=Hy, where x and y are vectors and H is the Hamiltonian matrix
- *
+ *  impl. of the conjugate gradient method
+ * 
  */
-#ifndef	INTERNALPRODUCT_OTF_H
-#define INTERNALPRODUCT_OTF_H
+#ifndef CONJ_GRAD_H
+#define CONJ_GRAD_H
 
-#include <vector>
+#include "Matrix.h"
+#include "Vector.h"
 
 namespace Dmrg {
-	template<
-		typename T, 
-		typename ModelType
-		>
-	class InternalProductOnTheFly {
-	public:	
-		typedef T HamiltonianElementType;
-		typedef T value_type;
-		typedef typename ModelType::ModelHelperType ModelHelperType;
-		typedef typename ModelHelperType::RealType RealType;
 
-		InternalProductOnTheFly(ModelType const *model,ModelHelperType const *modelHelper) 
-		{
-			model_ = model;
-			modelHelper_=modelHelper;
-			
-		}
+	template<typename RealType,typename MatrixType>
+	class	ConjugateGradient {
+		typedef typename MatrixType::value_type FieldType;
+		typedef std::vector<FieldType> VectorType;
+	public:
+		ConjugateGradient(size_t max=1000,const RealType& eps = 1e-6)
+		: max_(max), eps_(eps) {}
 
-		size_t rank() const { return modelHelper_->size(); }
-		
-		template<typename SomeVectorType>
-		void matrixVectorProduct(SomeVectorType &x,SomeVectorType const &y) const
+		//! A and b, the result x, and also the initial solution x0
+		void operator()(std::vector<VectorType>& x,
+		                  const MatrixType& A,
+		                  const std::vector<FieldType>& b) const
 		{
-			 model_->matrixVectorProduct(x,y,*modelHelper_);
+			VectorType v = multiply(A,x[0]);
+			std::vector<VectorType> r,p;
+			r.push_back(b);
+			p.push_back(b);
+			for (size_t i=0;i<r[0].size();i++) {
+				r[0][i] = b[i] - v[i];
+				p[0][i] = r[0][i];
+			}
+			size_t k = 0;
+			std::vector<FieldType> alpha,beta;
+			while(k<max_) {
+				FieldType val = scalarProduct(r[k],r[k])/
+				           scalarProduct(p[k],multiply(A,p[k]));
+				alpha.push_back(val);
+				v = x[k] + alpha[k] * p[k];
+				x.push_back(v);
+				v = r[k] - alpha[k] *multiply(A,p[k]);
+				r.push_back(v);
+				if (PsimagLite::norm(r[k+1])<eps_) break;
+				val = scalarProduct(r[k+1],r[k+1])/scalarProduct(r[k],r[k]);
+				beta.push_back(val);
+				v = r[k+1] - beta[k]*p[k];
+				p.push_back(v);
+				k++;
+			}
 		}
 
 	private:
-		ModelType const *model_;
-		ModelHelperType const *modelHelper_;
-	}; // class InternalProductOnTheFly
+
+		FieldType scalarProduct(const VectorType& v1,const VectorType& v2) const
+		{
+			FieldType sum = 0;
+			for (size_t i=0;i<v1.size();i++) sum += std::conj(v1[i])*v2[i];
+			return sum;
+		}
+
+		VectorType multiply(const MatrixType& A,const VectorType& v) const
+		{
+			VectorType y(A.rank(),0);
+			A.matrixVectorProduct(y,v);
+			return y;
+		}
+
+		size_t max_;
+		RealType eps_;
+	}; // class ConjugateGradient
+
 } // namespace Dmrg
 
 /*@}*/
-#endif
+#endif // CONJ_GRAD_H
 

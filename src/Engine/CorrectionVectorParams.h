@@ -1,6 +1,6 @@
 // BEGIN LICENSE BLOCK
 /*
-Copyright (c) 2009, UT-Battelle, LLC
+Copyright (c) 2009-2011, UT-Battelle, LLC
 All rights reserved
 
 [DMRG++, Version 2.0.0]
@@ -74,49 +74,64 @@ DISCLOSED WOULD NOT INFRINGE PRIVATELY OWNED RIGHTS.
 /** \ingroup DMRG */
 /*@{*/
 
-/*! \file InternalProductOnTheFly.h
+/*! \file CorrectionVectorParams.h
  *
- *  A class to encapsulate the product x+=Hy, where x and y are vectors and H is the Hamiltonian matrix
- *
+ *  This is a structure to represent the parameters of the
+ *  Correction vector DMRG algorithm.
+ *  Don't add functions to this class because
+ *  this class's data is all public
  */
-#ifndef	INTERNALPRODUCT_OTF_H
-#define INTERNALPRODUCT_OTF_H
+#ifndef CORRECTION_V_PARAMS_H
+#define CORRECTION_V_PARAMS_H
 
-#include <vector>
+#include "TargetParamsCommon.h"
 
 namespace Dmrg {
-	template<
-		typename T, 
-		typename ModelType
-		>
-	class InternalProductOnTheFly {
-	public:	
-		typedef T HamiltonianElementType;
-		typedef T value_type;
-		typedef typename ModelType::ModelHelperType ModelHelperType;
-		typedef typename ModelHelperType::RealType RealType;
-
-		InternalProductOnTheFly(ModelType const *model,ModelHelperType const *modelHelper) 
-		{
-			model_ = model;
-			modelHelper_=modelHelper;
+	//! Coordinates reading of TargetSTructure from input file
+	template<typename ModelType>
+	class CorrectionVectorParams : public TargetParamsCommon<ModelType> {
+	public:
+		typedef TargetParamsCommon<ModelType> TargetParamsCommonType;
+		typedef typename ModelType::RealType RealType;
 			
-		}
+		typedef typename ModelType::OperatorType OperatorType;
+		typedef typename OperatorType::PairType PairType;
+		typedef typename OperatorType::SparseMatrixType SparseMatrixType;
+		typedef typename SparseMatrixType::value_type ComplexOrReal;
+		typedef PsimagLite::Matrix<ComplexOrReal> MatrixType;
 
-		size_t rank() const { return modelHelper_->size(); }
-		
-		template<typename SomeVectorType>
-		void matrixVectorProduct(SomeVectorType &x,SomeVectorType const &y) const
-		{
-			 model_->matrixVectorProduct(x,y,*modelHelper_);
-		}
+		static size_t const PRODUCT = TargetParamsCommonType::PRODUCT;
+		static size_t const SUM = TargetParamsCommonType::SUM;
 
-	private:
-		ModelType const *model_;
-		ModelHelperType const *modelHelper_;
-	}; // class InternalProductOnTheFly
-} // namespace Dmrg
+		template<typename IoInputter>
+		CorrectionVectorParams(IoInputter& io,const ModelType& model)
+		: TargetParamsCommonType(io,model)
+		  {
+			io.rewind();
+			this->concatenation = SUM;
+			io.readline(type,"DynamicDmrgType=");
+			io.readline(omega,"CorrectionVectorOmega=");
+			io.readline(eta,"CorrectionVectorEta=");
+		  }
+		size_t type;
+		RealType omega;
+		RealType eta;
+	}; // class CorrectionVectorParams
+	
+	template<typename ModelType>
+	inline std::ostream&
+	operator<<(std::ostream& os,const CorrectionVectorParams<ModelType>& t)
+	{
+		os<<"#TargetParams.type=AdaptiveDynamic\n";
+		const typename TimeStepParams<ModelType>::TargetParamsCommonType&
+			tp = t;
+		os<<tp;
+		os<<"DynamicDmrgType="<<t.type<<"\n";
+		os<<"CorrectionVectorOmega="<<t.omega<<"\n";
+		os<<"CorrectionVectorEta="<<t.eta<<"\n";
+		return os;
+	}
+} // namespace Dmrg 
 
 /*@}*/
-#endif
-
+#endif //CORRECTION_V_PARAMS_H

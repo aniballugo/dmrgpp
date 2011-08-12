@@ -74,49 +74,49 @@ DISCLOSED WOULD NOT INFRINGE PRIVATELY OWNED RIGHTS.
 /** \ingroup DMRG */
 /*@{*/
 
-/*! \file InternalProductOnTheFly.h
+/*! \file LineChangerLinear.h
  *
- *  A class to encapsulate the product x+=Hy, where x and y are vectors and H is the Hamiltonian matrix
- *
+ * 
+ * 
  */
-#ifndef	INTERNALPRODUCT_OTF_H
-#define INTERNALPRODUCT_OTF_H
+#ifndef LINE_CHANGER_LINEAR_H
+#define LINE_CHANGER_LINEAR_H
 
+#include <string>
 #include <vector>
+#include "TypeToString.h"
 
 namespace Dmrg {
-	template<
-		typename T, 
-		typename ModelType
-		>
-	class InternalProductOnTheFly {
-	public:	
-		typedef T HamiltonianElementType;
-		typedef T value_type;
-		typedef typename ModelType::ModelHelperType ModelHelperType;
-		typedef typename ModelHelperType::RealType RealType;
-
-		InternalProductOnTheFly(ModelType const *model,ModelHelperType const *modelHelper) 
+	template<typename ValueType>
+	class	LineChangerLinear {
+	public:
+		LineChangerLinear(const std::string& match,
+		                  ValueType step,
+		                  ValueType init,
+		                  const std::string& pre,
+		                  const std::string& post)
+		: match_(match),step_(step),init_(init),pre_(pre),post_(post)
 		{
-			model_ = model;
-			modelHelper_=modelHelper;
-			
 		}
-
-		size_t rank() const { return modelHelper_->size(); }
 		
-		template<typename SomeVectorType>
-		void matrixVectorProduct(SomeVectorType &x,SomeVectorType const &y) const
+		const std::string& string() const { return match_; }
+		
+		bool act(size_t i,std::string& line) const
 		{
-			 model_->matrixVectorProduct(x,y,*modelHelper_);
+			ValueType val = i*step_ + init_;
+			line=match_ + pre_ + ttos(val) + post_;
+			return true;
 		}
 
 	private:
-		ModelType const *model_;
-		ModelHelperType const *modelHelper_;
-	}; // class InternalProductOnTheFly
+
+		std::string match_;
+		ValueType step_,init_;
+		std::string pre_,post_;
+	}; // class LineChangerLinear
+
 } // namespace Dmrg
 
 /*@}*/
-#endif
+#endif // LINE_CHANGER_LINEAR_H
 

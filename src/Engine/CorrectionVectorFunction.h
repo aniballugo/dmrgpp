@@ -1,6 +1,6 @@
 // BEGIN LICENSE BLOCK
 /*
-Copyright (c) 2009, UT-Battelle, LLC
+Copyright (c) 2009-2011, UT-Battelle, LLC
 All rights reserved
 
 [DMRG++, Version 2.0.0]
@@ -74,49 +74,68 @@ DISCLOSED WOULD NOT INFRINGE PRIVATELY OWNED RIGHTS.
 /** \ingroup DMRG */
 /*@{*/
 
-/*! \file InternalProductOnTheFly.h
+/*! \file CorrectionVectorFunction.h
  *
- *  A class to encapsulate the product x+=Hy, where x and y are vectors and H is the Hamiltonian matrix
- *
+ *  This is an implementation of PRB 60, 225, Eq. (24)
+ * 
  */
-#ifndef	INTERNALPRODUCT_OTF_H
-#define INTERNALPRODUCT_OTF_H
-
-#include <vector>
+#ifndef CORRECTION_V_FUNCTION_H
+#define CORRECTION_V_FUNCTION_H
+#include "ConjugateGradient.h"
 
 namespace Dmrg {
-	template<
-		typename T, 
-		typename ModelType
-		>
-	class InternalProductOnTheFly {
-	public:	
-		typedef T HamiltonianElementType;
-		typedef T value_type;
-		typedef typename ModelType::ModelHelperType ModelHelperType;
-		typedef typename ModelHelperType::RealType RealType;
+	template<typename RealType,typename MatrixType,typename InfoType>
+	class	CorrectionVectorFunction {
 
-		InternalProductOnTheFly(ModelType const *model,ModelHelperType const *modelHelper) 
+		typedef typename MatrixType::value_type FieldType;
+		typedef std::vector<FieldType> VectorType;
+
+		class InternalMatrix {
+		public:
+			typedef FieldType value_type ;
+			InternalMatrix(const MatrixType& m,const InfoType& info)
+			: m_(m),info_(info) {}
+
+			size_t rank() const { return m_.rank(); }
+
+			void matrixVectorProduct(VectorType& x,const VectorType& y) const
+			{
+				RealType eta = info_.eta;
+				RealType omega = info_.omega;
+				VectorType xTmp(x.size(),0);
+				m_.matrixVectorProduct(xTmp,y); // xTmp = Hy
+				VectorType x2(x.size(),0);
+				m_.matrixVectorProduct(x2,x); // x2 = H^2 y
+				x = x2 -2 *omega * xTmp + (omega*omega + eta*eta)*y;
+				x /= (-eta);
+			}
+		private:
+			const MatrixType& m_;
+			const InfoType& info_;
+		};
+		typedef ConjugateGradient<RealType,InternalMatrix> ConjugateGradientType;
+	public:
+		CorrectionVectorFunction(const MatrixType& m,const InfoType& info)
+		: im_(m,info),cg_()
 		{
-			model_ = model;
-			modelHelper_=modelHelper;
-			
 		}
 
-		size_t rank() const { return modelHelper_->size(); }
-		
-		template<typename SomeVectorType>
-		void matrixVectorProduct(SomeVectorType &x,SomeVectorType const &y) const
+		void getXi(VectorType& result,const VectorType& sv) const
 		{
-			 model_->matrixVectorProduct(x,y,*modelHelper_);
+			std::vector<VectorType> x;
+			VectorType x0(result.size(),0);
+			x.push_back(x0); // initial ansatz
+			cg_(x,im_,sv);
+			size_t k = x.size();
+			result = x[k-1];
 		}
 
 	private:
-		ModelType const *model_;
-		ModelHelperType const *modelHelper_;
-	}; // class InternalProductOnTheFly
+		InternalMatrix im_;
+		ConjugateGradientType cg_;
+	}; // class CorrectionVectorFunction
 } // namespace Dmrg
 
 /*@}*/
-#endif
+#endif // CORRECTION_V_FUNCTION_H
 

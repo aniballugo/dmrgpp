@@ -39,8 +39,6 @@ my ($electrons,$momentumJ,$su2Symmetry);
 my ($pthreads,$pthreadsLib)=(0,"");
 my $brand= "v2.0";
 my ($connectorsArgs,$connectorsArgs2,$dof,$connectors2,$connectorValue2);
-#my $targetting;
-#$DynamicTargetting = "DynamicTargettingEmpty" if ($hasGsl=~/n/i);
 
 my $gslLibs = " -lgsl  -lgslcblas ";
 $gslLibs =" " if ($hasGsl=~/n/i);
@@ -177,20 +175,28 @@ LDFLAGS =    $lapack  $gslLibs $pthreadsLib
 CPPFLAGS = -Werror -Wall  -IEngine $modelLocation -IGeometries -I$PsimagLite
 EOF
 if ($mpi) {
-	print FOUT "CXX = mpicxx -O2 -DNDEBUG \n";
+	print FOUT "CXX = mpicxx -O3 -DNDEBUG \n";
 } else {
-	print FOUT "CXX = $compiler -pg -O2 -DNDEBUG\n";
+	print FOUT "CXX = $compiler -pg -O3 -DNDEBUG\n";
+	print FOUT "#Comment out line below for debugging: \n";
+	print FOUT "#CXX = $compiler -g3 -DNDEBUG\n";
 }
 print FOUT<<EOF;
 EXENAME = dmrg
 all: \$(EXENAME)
 
+dmrg.cpp: configure.pl
+	perl configure.pl
+
 dmrg:  dmrg.o
 	\$(CXX) -o dmrg dmrg.o \$(LDFLAGS)  
 
+correctionVectorMulti: correctionVectorMulti.o
+	\$(CXX) -o correctionVectorMulti correctionVectorMulti.o \$(LDFLAGS)
+
 # dependencies brought about by Makefile.dep
-dmrg.o:
-	\$(CXX) \$(CPPFLAGS) -c dmrg.cpp
+%.o: %.cpp
+	\$(CXX) \$(CPPFLAGS) -c \$< 
 
 Makefile.dep: dmrg.cpp
 	\$(CXX) \$(CPPFLAGS) -MM dmrg.cpp  > Makefile.dep
@@ -265,6 +271,7 @@ print FOUT<<EOF;
 #include "DynamicTargetting.h"
 #include "AdaptiveDynamicTargetting.h"
 #include "CorrectionTargetting.h"
+#include "CorrectionVectorTargetting.h"
 #include "VectorWithOffset.h"
 #include "VectorWithOffsets.h"
 #include "BasisWithOperators.h"
@@ -343,7 +350,11 @@ int main(int argc,char *argv[])
 {
 	//! setup distributed parallelization
 	MyConcurrency concurrency(argc,argv);
-	
+
+	// print license
+	std::string license = $license;
+	if (concurrency.root()) std::cerr<<license;
+
 	//Setup the Geometry
 	typedef PsimagLite::IoSimple::In IoInputType;
 	IoInputType io(argv[1]);
@@ -353,16 +364,13 @@ int main(int argc,char *argv[])
 	ParametersModelType mp(io);
 	ParametersDmrgSolver<MatrixElementType> dmrgSolverParams(io);
 
-	// print license
-	std::string license = $license;
-	if (concurrency.root()) std::cerr<<license;
-
 	bool su2=false;
 	if (dmrgSolverParams.options.find("useSu2Symmetry")!=std::string::npos) su2=true;
 	std::string targetting="GroundStateTargetting";
 	if (dmrgSolverParams.options.find("TimeStepTargetting")!=std::string::npos) targetting="TimeStepTargetting";
 	if (dmrgSolverParams.options.find("DynamicTargetting")!=std::string::npos) targetting="DynamicTargetting";
 	if (dmrgSolverParams.options.find("AdaptiveDynamicTargetting")!=std::string::npos) targetting="AdaptiveDynamicTargetting";
+	if (dmrgSolverParams.options.find("CorrectionVectorTargetting")!=std::string::npos) targetting="CorrectionVectorTargetting";
 	if (dmrgSolverParams.options.find("CorrectionTargetting")!=std::string::npos) targetting="CorrectionTargetting";
 	if (targetting!="GroundStateTargetting" && su2) throw std::runtime_error("SU(2)"
  		" supports only GroundStateTargetting for now (sorry!)\\n");
@@ -406,6 +414,14 @@ int main(int argc,char *argv[])
 			(mp,geometry,dmrgSolverParams,concurrency,io,targetting);
 			return 0;
 	}
+	if (targetting=="CorrectionVectorTargetting") {
+		mainLoop<ParametersModelType,GeometryType,ParametersDmrgSolver<MatrixElementType>,MyConcurrency,
+			IoInputType,
+			$modelName,ModelHelperLocal,InternalProductOnTheFly,VectorWithOffsets,CorrectionVectorTargetting,
+			MySparseMatrixReal>
+			(mp,geometry,dmrgSolverParams,concurrency,io,targetting);
+			return 0;
+	}
 	if (targetting=="CorrectionTargetting") {
 		mainLoop<ParametersModelType,GeometryType,ParametersDmrgSolver<MatrixElementType>,MyConcurrency,
 			IoInputType,
@@ -437,10 +453,10 @@ sub getLicense
 	}
 	my $l="";
 	while(<THISFILE>) {
+		last if (/END LICENSE BLOCK/);
 		chomp;
 		s/\"/\\\"/g;
 		$l = "$l\"$_\\n\"\n";
-		last if (/END LICENSE BLOCK/);
 	}
 	close(THISFILE);
 	return $l;
