@@ -95,10 +95,12 @@ DISCLOSED WOULD NOT INFRINGE PRIVATELY OWNED RIGHTS.
 
 namespace Dmrg {
 	//! Model Hubbard for DMRG solver, inherits from ModelBase and implements its interface:
-	template<typename ModelHelperType_,
-	typename SparseMatrixType,
-	typename DmrgGeometryType,
-	template<typename> class SharedMemoryTemplate>
+	template<
+		typename ModelHelperType_,
+		typename SparseMatrixType,
+		typename DmrgGeometryType,
+		template<typename> class SharedMemoryTemplate
+	>
 	class ModelHubbard : public ModelBase<ModelHelperType_,SparseMatrixType,DmrgGeometryType,
 		LinkProductHubbardOneBand<ModelHelperType_>,SharedMemoryTemplate> {
 	public:
